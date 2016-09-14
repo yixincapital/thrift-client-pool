@@ -48,6 +48,7 @@
     <Compile Include="IKeyedObjectPool.cs" />
     <Compile Include="IKeyedPooledObjectFactory.cs" />
     <Compile Include="IllegalStateException.cs" />
+    <Compile Include="impl\DefaultPooledObject.cs" />
     <Compile Include="IObjectPool.cs" />
     <Compile Include="IPooledObject.cs" />
     <Compile Include="IPooledObjectFactory.cs" />
