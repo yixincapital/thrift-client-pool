@@ -69,8 +69,13 @@ namespace CommonPool2.impl
         private int maxBorrowWaitTimeMillis = 0;
         //private volatile SwallowedExceptionListener swallowedExceptionListener = null;
 
-        public BaseGenericObjectPool(BaseObjectPoolConfig config)
+        protected BaseGenericObjectPool(BaseObjectPoolConfig config)
         {
+        }
+
+        protected BaseGenericObjectPool()
+        {
+            
         }
 
         /// <summary>
