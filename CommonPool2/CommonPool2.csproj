@@ -46,6 +46,7 @@
     <Compile Include="BaseObjectPool.cs" />
     <Compile Include="BasePooledObjectFactory.cs" />
     <Compile Include="IKeyedObjectPool.cs" />
+    <Compile Include="IKeyedPooledObjectFactory.cs" />
     <Compile Include="IllegalStateException.cs" />
     <Compile Include="IObjectPool.cs" />
     <Compile Include="IPooledObject.cs" />
