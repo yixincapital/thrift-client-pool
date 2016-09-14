@@ -54,7 +54,9 @@
     <Compile Include="impl\DefaultPooledObject.cs" />
     <Compile Include="impl\EvictionConfig.cs" />
     <Compile Include="impl\EvictionPolicy.cs" />
+    <Compile Include="impl\GenericKeyedObjectPool.cs" />
     <Compile Include="impl\GenericKeyedObjectPoolConfig.cs" />
+    <Compile Include="impl\GenericObjectPool.cs" />
     <Compile Include="impl\GenericObjectPoolConfig.cs" />
     <Compile Include="impl\LinkedBlockingDeque.cs" />
     <Compile Include="IObjectPool.cs" />
