@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading;
 using System.Timers;
 using CommonPool2.Extension;
-using DequeNet;
 
 namespace CommonPool2.impl
 {

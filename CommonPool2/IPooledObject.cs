@@ -1,6 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
-using DequeNet;
+using DequeUtility;
 
 namespace CommonPool2
 {

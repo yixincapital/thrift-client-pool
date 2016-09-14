@@ -30,8 +30,8 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="DequeNet, Version=1.0.1.0, Culture=neutral, PublicKeyToken=6c367a1c27d122c9, processorArchitecture=MSIL">
-      <HintPath>..\ThriftClientPool\packages\DequeNET.1.0.1\lib\portable-net4+win8\DequeNet.dll</HintPath>
+    <Reference Include="Deque, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\ThriftClientPool\packages\Deque.1.0.1\lib\Net20\Deque.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="System" />
@@ -55,6 +55,8 @@
     <Compile Include="impl\EvictionConfig.cs" />
     <Compile Include="impl\EvictionPolicy.cs" />
     <Compile Include="impl\GenericKeyedObjectPoolConfig.cs" />
+    <Compile Include="impl\GenericObjectPoolConfig.cs" />
+    <Compile Include="impl\LinkedBlockingDeque.cs" />
     <Compile Include="IObjectPool.cs" />
     <Compile Include="IPooledObject.cs" />
     <Compile Include="IPooledObjectFactory.cs" />
