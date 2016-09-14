@@ -4,7 +4,7 @@ using DequeNet;
 
 namespace CommonPool2
 {
-    public interface IPooledObject<T>:IComparable<IPooledObject<T>>
+    public interface IPooledObject<T> : IComparable<IPooledObject<T>>
     {
         /// <summary>
         /// Obtain the underlying object that is wrapped by this instance of  PooledObject

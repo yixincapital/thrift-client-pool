@@ -16,6 +16,7 @@ namespace CommonPool2.impl
         private volatile Exception borrowedBy = null;
         private volatile Exception usedBy = null;
         private  long borrowedCount = 0;
+        private readonly object syncLock = new object();
 
         public DefaultPooledObject(T obj)
         {
@@ -24,7 +25,17 @@ namespace CommonPool2.impl
 
         public int CompareTo(IPooledObject<T> other)
         {
-            throw new System.NotImplementedException();
+            long lastActiveDiff = this.GetLastReturnTime() - other.GetLastReturnTime();
+            if (lastActiveDiff == 0)
+            {
+                // Make sure the natural ordering is broadly consistent with equals
+                // although this will break down if distinct objects have the same
+                // identity hash code.
+                // see java.lang.Comparable Javadocs
+                return this.GetHashCode() - other.GetHashCode();
+            }
+            // handle int overflow
+            return (int)Math.Min(Math.Max(lastActiveDiff, 0x80000000), 0x7fffffff); // 0x80000000 is the min int 
         }
 
         public T GetObject()
@@ -80,59 +91,135 @@ namespace CommonPool2.impl
             }
         }
 
+         
         public bool StartEvictionTest()
         {
-            throw new System.NotImplementedException();
+            if (state == PooledObjectState.Idle)
+            {
+                state = PooledObjectState.Eviction;
+                return true;
+            }
+
+            return false;
         }
 
         public bool EndEvictionTest(Deque<IPooledObject<T>> idleQueue)
         {
-            throw new System.NotImplementedException();
+             if (state == PooledObjectState.Eviction) {
+            state = PooledObjectState.Idle;
+            return true;
+        } else if (state == PooledObjectState.EvictionReturnToHead) {
+            state = PooledObjectState.Idle;
+            //if (!idleQueue.offerFirst(this)) {
+            //    // TODO - Should never happen
+            }
+             return false;
         }
 
         public bool Allocate()
         {
-            throw new System.NotImplementedException();
+            if (state == PooledObjectState.Idle)
+            {
+                state = PooledObjectState.Allocated;
+                lastBorrowTime = DateTime.Now.Millisecond;
+                lastUseTime = lastBorrowTime;
+                borrowedCount++;
+                if (logAbandoned)
+                {
+                    borrowedBy = new AbandonedObjectCreatedException();
+                }
+                return true;
+            }
+            else if (state == PooledObjectState.Eviction)
+            {
+                // TODO Allocate anyway and ignore eviction test
+                state = PooledObjectState.EvictionReturnToHead;
+                return false;
+            }
+            // TODO if validating and testOnBorrow == true then pre-allocate for
+            // performance
+            return false;
         }
 
         public bool Deallocate()
         {
-            throw new System.NotImplementedException();
+            if (state == PooledObjectState.Allocated ||
+                state == PooledObjectState.Returning)
+            {
+                state = PooledObjectState.Idle;
+                lastReturnTime = DateTime.Now.Millisecond;
+                borrowedBy = null;
+                return true;
+            }
+
+            return false;
         }
 
         public void Invalidate()
         {
-            throw new System.NotImplementedException();
+            lock (syncLock)
+            {
+                state = PooledObjectState.Invalid;
+            }
         }
 
         public void SetLogAbandoned(bool logAbandoned)
         {
-            throw new System.NotImplementedException();
+            this.logAbandoned = logAbandoned;
         }
 
         public void Use()
         {
-            throw new System.NotImplementedException();
+            lastUseTime = DateTime.Now.Millisecond;
+            usedBy = new Exception("The last code to use this object was:");
         }
 
         public void PrintStackTrace(StringWriter writer)
         {
-            throw new System.NotImplementedException();
+            //TODO use a custom writer do some print work :)
         }
 
         public PooledObjectState GetState()
         {
-            throw new System.NotImplementedException();
+            lock (syncLock)
+            {
+                return state;
+            }
         }
 
         public void MarkAbandoned()
         {
-            throw new System.NotImplementedException();
+            lock (syncLock)
+            {
+                state = PooledObjectState.Abandoned;
+            }
         }
 
         public void MarkReturning()
         {
-            throw new System.NotImplementedException();
+            lock (syncLock)
+            {
+                state = PooledObjectState.Returning;
+            }
         }
+    }
+
+     class AbandonedObjectCreatedException : Exception
+    {
+         private static readonly long serialVersionUID = 7398692158058772916L;
+         private readonly long _createdTime;
+
+         public AbandonedObjectCreatedException()
+         {             
+             _createdTime = DateTime.Now.Millisecond;
+         }
+
+         public string GetMessage()
+         {
+              string msg;
+             msg = new DateTime(_createdTime).ToString("yyyy-MM-dd HH:mm:ss Z");     
+            return msg;
+         }
+         
     }
 }
