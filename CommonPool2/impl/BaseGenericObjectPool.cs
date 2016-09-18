@@ -57,16 +57,16 @@ namespace CommonPool2.impl
         //// Monitoring (primarily JMX) attributes
         //private  ObjectName oname;
         //private  String creationStackTrace;
-        private int borrowedCount = 0;
-        private int returnedCount = 0;
-        int createdCount = 0;
+        protected int _borrowedCount = 0;
+        protected int _returnedCount = 0;
+        protected int createdCount = 0;
         int destroyedCount = 0;
         int destroyedByEvictorCount = 0;
         int destroyedByBorrowValidationCount = 0;
-        private readonly StatsStore activeTimes = new StatsStore(MEAN_TIMING_STATS_CACHE_SIZE);
-        private StatsStore idleTimes = new StatsStore(MEAN_TIMING_STATS_CACHE_SIZE);
-        private StatsStore waitTimes = new StatsStore(MEAN_TIMING_STATS_CACHE_SIZE);
-        private int maxBorrowWaitTimeMillis = 0;
+        protected readonly StatsStore activeTimes = new StatsStore(MEAN_TIMING_STATS_CACHE_SIZE);
+        protected StatsStore idleTimes = new StatsStore(MEAN_TIMING_STATS_CACHE_SIZE);
+        protected StatsStore waitTimes = new StatsStore(MEAN_TIMING_STATS_CACHE_SIZE);
+        protected int maxBorrowWaitTimeMillis = 0;
         //private volatile SwallowedExceptionListener swallowedExceptionListener = null;
 
         protected BaseGenericObjectPool(BaseObjectPoolConfig config)
@@ -260,7 +260,7 @@ namespace CommonPool2.impl
             return evictionPolicy;
         }
 
-        void AssertOpen()
+        protected void AssertOpen()
         {
 
         }
@@ -285,7 +285,7 @@ namespace CommonPool2.impl
         }
         public long GetBorrowedCount()
         {
-            return borrowedCount;
+            return _borrowedCount;
         }
         public long GetCreatedCount()
         {
@@ -372,7 +372,7 @@ namespace CommonPool2.impl
         public abstract int GetNumIdle();
         public long GetReturnedCount()
         {
-            return returnedCount;
+            return _returnedCount;
         }
 
 
@@ -383,7 +383,7 @@ namespace CommonPool2.impl
 
         void UpdateStatsBorrow(IPooledObject<T> p, long waitTime)
         {
-            borrowedCount++;
+            _borrowedCount++;
             idleTimes.Add(p.GetIdleTimeMillis());
             waitTimes.Add(waitTime);
 
@@ -398,7 +398,7 @@ namespace CommonPool2.impl
         }
         void UpdateStatsReturn(long activeTime)
         {
-            returnedCount++;
+            _returnedCount++;
             activeTimes.Add(activeTime);
         }
 
@@ -523,6 +523,56 @@ namespace CommonPool2.impl
                 throw new NotSupportedException();
             }
         }
+
+        /**
+     * Wrapper for objects under management by the pool.
+     *
+     * GenericObjectPool and GenericKeyedObjectPool maintain references to all
+     * objects under management using maps keyed on the objects. This wrapper
+     * class ensures that objects can work as hash keys.
+     *
+     * @param <T> type of objects in the pool
+     */
+    protected class IdentityWrapper<T> {
+        /** Wrapped object */
+        private  readonly T instance;
+        
+        /**
+         * Create a wrapper for an instance.
+         *
+         * @param instance object to wrap
+         */
+        public IdentityWrapper(T instance) {
+            this.instance = instance;
+        }
+       
+        public int HashCode() {
+            return instance.GetHashCode();
+        }
+
+
+        public override bool Equals(object other) 
+        {
+          return  instance.Equals(other);
+        }
+
+        protected bool Equals(IdentityWrapper<T> other)
+        {
+            return EqualityComparer<T>.Default.Equals(instance, other.instance);
+        }
+
+        public override int GetHashCode()
+        {
+            return EqualityComparer<T>.Default.GetHashCode(instance);
+        }
+
+        /**
+         * @return the wrapped object
+         */
+        public T GetObject() {
+            return instance; 
+        }
+    }
     }
 
 
