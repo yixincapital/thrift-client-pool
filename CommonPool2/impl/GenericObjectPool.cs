@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace CommonPool2.impl
@@ -71,12 +72,26 @@ namespace CommonPool2.impl
 
         public void Clear()
         {
-            throw new System.NotImplementedException();
+            idleObjects.Clear();
         }
 
+        /// <summary>
+        /// Closes the pool. 
+        /// </summary>
         public override void Close()
         {
-            throw new System.NotImplementedException();
+            if (IsClosed())
+            {
+                return;
+            }
+            lock (closeLock)
+            {
+                if (IsClosed())
+                {
+                    return;
+                }
+                closed = true;
+            }
         }
 
         public override void Evict()
@@ -255,34 +270,246 @@ namespace CommonPool2.impl
             }
         }
 
+        /// <summary>
+        /// Recover abandoned objects which have been checked out but
+        /// not used since longer than the removeAbandonedTimeout.
+        /// </summary>
+        /// <param name="ac"></param>
         private void RemoveAbandoned(AbandonedConfig ac)
         {
-            throw new NotImplementedException();
+            long now = DateTime.Now.Millisecond;
+            long timeout = now - ac.getRemoveAbandonedTimeout()*1000L;
+            List<IPooledObject<T>> remove = new List<IPooledObject<T>>();
+            IEnumerator<IPooledObject<T>> it = _allObjects.Values.GetEnumerator();
+            do
+            {
+                IPooledObject<T> pooledObject = it.Current;
+                lock (pooledObject)
+                {
+                    if (pooledObject.GetState() == PooledObjectState.Allocated &&
+                        pooledObject.GetLastUsedTime() <= timeout)
+                    {
+                        pooledObject.MarkAbandoned();
+                        remove.Add(pooledObject);
+                    }
+                }
+            } while (it.MoveNext());
+
+            // Now remove the abandoned objects
+            IEnumerator<IPooledObject<T>> itr =remove.GetEnumerator();
+
+            do
+            {
+                IPooledObject<T> pooledObject = itr.Current;
+                try
+                {
+                    InvalidateObject(pooledObject.GetObject());
+                }
+                catch (Exception ex)
+                {
+                    throw ex;
+                }
+            } while (itr.MoveNext());
         }
 
         public void ReturnObject(T obj)
         {
-            throw new System.NotImplementedException();
-        }
+            IPooledObject<T> p;
+            _allObjects.TryGetValue(new IdentityWrapper<T>(obj), out p);
 
+            if (p == null)
+            {
+                return;
+            }
+
+            lock (p)
+            {
+                var state = p.GetState();
+                if (state != PooledObjectState.Allocated)
+                {
+                    throw new IllegalStateException(
+                      "Object has already been returned to this pool or is invalid");
+                }
+                else
+                {
+                    p.MarkReturning(); // Keep from being marked abandoned
+                }
+            }
+            long activeTime = p.GetActiveTimeMillis();
+            if (GetTestOnReturn())
+            {
+                if (!factory.ValidateObject(p))
+                {
+                    try
+                    {
+                        Destroy(p);
+                    }
+                    catch (Exception)
+                    {                        
+                        throw;
+                    }
+                    try
+                    {
+                        EnsureIdle(1, false);
+                    }
+                    catch (Exception e)
+                    {
+                        throw e;
+                    }
+                    UpdateStatsReturn(activeTime);
+                }
+            }
+            try
+            {
+                factory.PassivateObject(p);
+            }
+            catch (Exception e1)
+            {
+               
+                try
+                {
+                    Destroy(p);
+                }
+                catch (Exception e)
+                {
+                    throw e;
+                }
+                try
+                {
+                    EnsureIdle(1, false);
+                }
+                catch (Exception e)
+                {
+                    throw e;
+                }
+                UpdateStatsReturn(activeTime);
+                return;
+            }
+
+            if (!p.Deallocate())
+            {
+                throw new IllegalStateException(
+                        "Object has already been returned to this pool or is invalid");
+            }
+
+            int maxIdleSave = GetMaxIdle();
+            if (IsClosed() || maxIdleSave > -1 && maxIdleSave <= idleObjects.Count)
+            {
+                try
+                {
+                    Destroy(p);
+                }
+                catch (Exception e)
+                {
+                    throw e;
+                }
+            }
+            else
+            {               
+                idleObjects.AddBack(p);             
+                if (IsClosed())
+                {
+                    // Pool closed while object was being added to idle objects.
+                    // Make sure the returned object is destroyed rather than left
+                    // in the idle object pool (which would effectively be a leak)
+                    Clear();
+                }
+            }
+            UpdateStatsReturn(activeTime);
+        }
+         
+        public int GetMaxIdle()
+        {
+            return maxIdle;
+        }
         public void InvalidateObject(T obj)
         {
-            throw new System.NotImplementedException();
+
+            IPooledObject<T> p;
+            _allObjects.TryGetValue(new IdentityWrapper<T>(obj), out p);
+            if (p == null)
+            {
+                throw new Exception(
+                      "Invalidated object not currently part of this pool");
+            }
+            lock (p)
+            {
+                if (p.GetState() != PooledObjectState.Invalid)
+                {
+                    Destroy(p);
+                }
+            }
+
+            EnsureIdle(1, false);
         }
 
+        private void EnsureIdle(int idleCount, bool always)
+        {
+            if (idleCount < 1 || IsClosed() || (!always && !idleObjects.HasTakeWaiters()))
+            {
+                return;
+            }
+
+            while (idleObjects.Count<idleCount)
+            {
+                IPooledObject<T> p = Create();
+                if (p == null)
+                {
+                    // Can't create objects, no reason to think another call to
+                    // create will work. Give up.
+                    break;
+                }
+                idleObjects.AddBack(p); // default add the instance to the end of deque
+            }
+            if (IsClosed())
+            {
+                // Pool closed while object was being added to idle objects.
+                // Make sure the returned object is destroyed rather than left
+                // in the idle object pool (which would effectively be a leak)
+                Clear();
+            }
+        }
+
+        /// <summary>
+        /// Create an object, and place it into the pool. addObject() is useful for
+        /// "pre-loading" a pool with idle objects.
+        /// </summary>
         public void AddObject()
         {
-            throw new System.NotImplementedException();
+            AssertOpen();
+            if (factory == null)
+            {
+                throw new IllegalStateException(
+                        "Cannot add objects without a factory.");
+            }
+            IPooledObject<T> p = Create();
+            AddIdleObject(p);
+        }
+        
+        /// <summary>
+        /// add the provided wrapped pooled object to the set of idle objects for
+        /// this pool. The object must already be part of the pool.  If  p
+        ///  is null, this is a no-op (no exception, but no impact on the pool).
+        /// </summary>
+        /// <param name="pooledObject"></param>
+        private void AddIdleObject(IPooledObject<T> p)
+        {
+            if (p != null)
+            {
+                factory.PassivateObject(p);
+             
+                idleObjects.AddBack(p);          
+            }
         }
 
         public override int GetNumIdle()
         {
-            throw new System.NotImplementedException();
+            return idleObjects.Count;
         }
 
-        public int GetNumActive()
+        public override int GetNumActive()
         {
-            throw new System.NotImplementedException();
+            return _allObjects.Count - idleObjects.Count;
         }
     }
 }

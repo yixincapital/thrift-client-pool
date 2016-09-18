@@ -61,7 +61,7 @@
             throw new System.NotImplementedException();
         }
 
-        public int GetNumActive()
+        public override int GetNumActive()
         {
             throw new System.NotImplementedException();
         }

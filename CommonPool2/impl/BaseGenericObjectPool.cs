@@ -14,35 +14,35 @@ namespace CommonPool2.impl
         // Configuration attributes
         private volatile int maxTotal =
                 GenericKeyedObjectPoolConfig.DEFAULT_MAX_TOTAL;
-        private volatile bool blockWhenExhausted =
+         volatile bool blockWhenExhausted =
                 BaseObjectPoolConfig.DEFAULT_BLOCK_WHEN_EXHAUSTED;
-        private long maxWaitMillis =
+         long maxWaitMillis =
                 BaseObjectPoolConfig.DEFAULT_MAX_WAIT_MILLIS;
-        private static bool lifo = BaseObjectPoolConfig.DEFAULT_LIFO;
-        private readonly bool fairness;
-        private volatile bool testOnCreate =
+         static bool lifo = BaseObjectPoolConfig.DEFAULT_LIFO;
+         readonly bool fairness;
+         volatile bool testOnCreate =
                 BaseObjectPoolConfig.DEFAULT_TEST_ON_CREATE;
         private volatile bool testOnBorrow =
                 BaseObjectPoolConfig.DEFAULT_TEST_ON_BORROW;
-        private volatile bool testOnReturn =
+         volatile bool testOnReturn =
                 BaseObjectPoolConfig.DEFAULT_TEST_ON_RETURN;
-        private volatile bool testWhileIdle =
+         volatile bool testWhileIdle =
                 BaseObjectPoolConfig.DEFAULT_TEST_WHILE_IDLE;
-        private long timeBetweenEvictionRunsMillis =
+         long timeBetweenEvictionRunsMillis =
                 BaseObjectPoolConfig.DEFAULT_TIME_BETWEEN_EVICTION_RUNS_MILLIS;
-        private volatile int numTestsPerEvictionRun =
+         volatile int numTestsPerEvictionRun =
                 BaseObjectPoolConfig.DEFAULT_NUM_TESTS_PER_EVICTION_RUN;
-        private long minEvictableIdleTimeMillis =
+         protected long minEvictableIdleTimeMillis =
                 BaseObjectPoolConfig.DEFAULT_MIN_EVICTABLE_IDLE_TIME_MILLIS;
-        private long softMinEvictableIdleTimeMillis =
+         protected long softMinEvictableIdleTimeMillis =
                 BaseObjectPoolConfig.DEFAULT_SOFT_MIN_EVICTABLE_IDLE_TIME_MILLIS;
-        private volatile EvictionPolicy<T> evictionPolicy;
+         volatile EvictionPolicy<T> evictionPolicy;
 
 
         // Internal (primarily state) attributes
-        static readonly Object closeLock = new Object();
+        protected static readonly Object closeLock = new Object();
 
-        bool closed = false;
+        protected bool closed = false;
         readonly Object evictionLock = new Object();
         EvictionIterator evictionIterator = null; // @GuardedBy("evictionLock")
         /*
@@ -370,6 +370,7 @@ namespace CommonPool2.impl
          * @return count of instances available for checkout from the pool
          */
         public abstract int GetNumIdle();
+        public abstract int GetNumActive();
         public long GetReturnedCount()
         {
             return _returnedCount;
@@ -396,7 +397,8 @@ namespace CommonPool2.impl
             //    }
             //} while (!maxBorrowWaitTimeMillis.CompareAndSet(currentMax, waitTime));
         }
-        void UpdateStatsReturn(long activeTime)
+
+        protected void UpdateStatsReturn(long activeTime)
         {
             _returnedCount++;
             activeTimes.Add(activeTime);
