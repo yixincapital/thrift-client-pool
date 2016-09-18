@@ -125,7 +125,7 @@ namespace CommonPool2.impl
         bool blockWhenExhausted = getBlockWhenExhausted();
 
         bool create;
-        long waitTime = DateTime.Now.Millisecond;
+        long waitTime =DateTime.Now.CurrentTimeMillis();
 
         while (p == null) {
             create = false;
@@ -208,7 +208,7 @@ namespace CommonPool2.impl
             }
         }
 
-        UpdateStatsBorrow(p, DateTime.Now.Millisecond - waitTime);
+        UpdateStatsBorrow(p,DateTime.Now.CurrentTimeMillis() - waitTime);
 
         return p.GetObject();
     }
@@ -277,7 +277,7 @@ namespace CommonPool2.impl
         /// <param name="ac"></param>
         private void RemoveAbandoned(AbandonedConfig ac)
         {
-            long now = DateTime.Now.Millisecond;
+            long now =DateTime.Now.CurrentTimeMillis();
             long timeout = now - ac.getRemoveAbandonedTimeout()*1000L;
             List<IPooledObject<T>> remove = new List<IPooledObject<T>>();
             IEnumerator<IPooledObject<T>> it = _allObjects.Values.GetEnumerator();

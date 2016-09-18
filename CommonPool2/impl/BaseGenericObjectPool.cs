@@ -535,7 +535,8 @@ namespace CommonPool2.impl
      *
      * @param <T> type of objects in the pool
      */
-    protected class IdentityWrapper<T> {
+
+        public class IdentityWrapper<T> {
         /** Wrapped object */
         private  readonly T instance;
         

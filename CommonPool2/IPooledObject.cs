@@ -14,7 +14,7 @@ namespace CommonPool2
         T GetObject();
 
         /// <summary>
-        ///  Obtain the time (using the same basis as currentTimeMillis()) that this object was created.
+        ///  Obtain the time (using the same basis as DateTime.Now.CurrentTimeMillis()) that this object was created.
         /// </summary>
         /// <returns>The creation time for the wrapped object</returns>
         long GetCreateTime();

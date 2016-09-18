@@ -8,7 +8,7 @@ namespace CommonPool2.impl
     {
         private  readonly T currentObj; 
         private PooledObjectState state = PooledObjectState.Idle; // @GuardedBy("this") to ensure transitions are valid
-        private static readonly long createTime = DateTime.Now.Millisecond;
+        private static readonly long createTime =DateTime.Now.CurrentTimeMillis();
         private  long lastBorrowTime = createTime;
         private  long lastUseTime = createTime;
         private  long lastReturnTime = createTime;
@@ -59,13 +59,13 @@ namespace CommonPool2.impl
             }
             else
             {
-                return DateTime.Now.Millisecond - bTime;       
+                return DateTime.Now.CurrentTimeMillis() - bTime;       
             }               
         }
 
         public long GetIdleTimeMillis()
         {
-            var elapsed = DateTime.Now.Millisecond - lastBorrowTime;
+            var elapsed =DateTime.Now.CurrentTimeMillis() - lastBorrowTime;
             return elapsed >= 0 ? elapsed : 0;
         }
 
@@ -121,7 +121,7 @@ namespace CommonPool2.impl
             if (state == PooledObjectState.Idle)
             {
                 state = PooledObjectState.Allocated;
-                lastBorrowTime = DateTime.Now.Millisecond;
+                lastBorrowTime =DateTime.Now.CurrentTimeMillis();
                 lastUseTime = lastBorrowTime;
                 borrowedCount++;
                 if (logAbandoned)
@@ -147,7 +147,7 @@ namespace CommonPool2.impl
                 state == PooledObjectState.Returning)
             {
                 state = PooledObjectState.Idle;
-                lastReturnTime = DateTime.Now.Millisecond;
+                lastReturnTime =DateTime.Now.CurrentTimeMillis();
                 borrowedBy = null;
                 return true;
             }
@@ -170,7 +170,7 @@ namespace CommonPool2.impl
 
         public void Use()
         {
-            lastUseTime = DateTime.Now.Millisecond;
+            lastUseTime =DateTime.Now.CurrentTimeMillis();
             usedBy = new Exception("The last code to use this object was:");
         }
 
@@ -211,7 +211,7 @@ namespace CommonPool2.impl
 
          public AbandonedObjectCreatedException()
          {             
-             _createdTime = DateTime.Now.Millisecond;
+             _createdTime =DateTime.Now.CurrentTimeMillis();
          }
 
          public string GetMessage()
