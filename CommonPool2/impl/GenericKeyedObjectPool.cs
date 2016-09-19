@@ -111,16 +111,184 @@ namespace CommonPool2.impl
                         if (p == null)
                         {
                             p = Create(key);
+                            if (p != null)
+                            {
+                                create = true;
+                            }
+                        }
+                        if (p == null)
+                        {
+                            if (borrowMaxWaitMillis < 0)
+                            {
+                                p = objectDeque.GetIdleObjects().TakeFront();
+                            }
+                            else
+                            {
+                                p = objectDeque.GetIdleObjects().RemoveFront();
+                            }
+                        }
+                        if (p == null)
+                        {
+                            throw new Exception(
+                                "Timeout waiting for idle object");
+                        }
+                        if (!p.Allocate())
+                        {
+                            p = null;
+                        }
+                    }
+                    else
+                    {
+                        p = objectDeque.GetIdleObjects().RemoveFront();
+                        if (p == null)
+                        {
+                            p = Create(key);
+                            if (p != null)
+                            {
+                                create = true;
+                            }
+                        }
+                        if (p == null)
+                        {
+                            throw new Exception("Pool exhausted");
+                        }
+                        if (!p.Allocate())
+                        {
+                            p = null;
+                        }
+                    }
+                    if (p != null)
+                    {
+                        try
+                        {
+                            factory.ActivateObject(key, p);
+                        }
+                        catch (Exception e)
+                        {
+                            try
+                            {
+                                Destroy(key, p, true);
+                            }
+                            catch (Exception)
+                            {
+                                // ignore  
+                            }
+                            p = null;
+                            if (create)
+                            {
+                                throw new Exception("Unable to activate object");
+                            }
+                        }
+                        if (p != null && (GetTestOnBorrow() || create && getTestOnCreate()))
+                        {
+                            bool validate = false;
+                            try
+                            {
+                                validate = factory.ValidateObject(key, p);
+                            }
+                            catch (Exception)
+                            {
+                                throw;
+                            }
+                            if (!validate)
+                            {
+                                try
+                                {
+                                    Destroy(key, p, true);
+                                    destroyedByBorrowValidationCount++;
+                                }
+                                catch (Exception)
+                                {
+                                    // Ignore - validation failure is more important
+                                }
+                                p = null;
+                                if (create)
+                                {
+                                    throw new Exception("Unable to validate object");
+                                }
+                            }
                         }
                     }
                 }
             }
-            catch (Exception)
+            finally
             {
-                
-                throw;
+                Deregister(key); 
             }
+            UpdateStatsBorrow(p, DateTime.Now.CurrentTimeMillis() - waitTime);
+            return p.GetObject();
+        }
 
+        private void Deregister(K key)
+        {
+            ObjectDeque<T> objectDeque;
+
+            poolMap.TryGetValue(key, out objectDeque);
+
+            long numInterested = objectDeque.DecrementAndGet();
+            if (numInterested == 0 && objectDeque.GetCreateCount() == 0)
+            {
+                // Potential to remove key
+                ReaderWriterLockSlim locker =new ReaderWriterLockSlim();
+                locker.EnterWriteLock();
+                try
+                {
+                    if (objectDeque.GetCreateCount() == 0 && objectDeque.GetNumInterested() == 0)
+                    {
+                        // NOTE: Keys must always be removed from both poolMap and
+                        //       poolKeyList at the same time while protected by
+                        //       keyLock.writeLock()
+                        poolMap.TryRemove(key, out objectDeque);
+                        poolKeyList.Remove(key);
+                    }
+                }
+                finally
+                {
+                    locker.ExitWriteLock();
+                }
+              //  locker.Dispose();               
+            }
+        }
+
+        /// <summary>
+        /// Destroy the wrapped, pooled object.
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="toDestroy"></param>
+        /// <param name="always"></param>
+        private bool Destroy(K key, IPooledObject<T> toDestroy, bool always)
+        {
+            ObjectDeque<T> objectDeque = Register(key);
+            try
+            {
+                bool isIdle = objectDeque.GetIdleObjects().Remove(toDestroy);
+
+                if (isIdle || always)
+                {
+                    objectDeque.GetAllObjects().TryRemove(new IdentityWrapper<T>(toDestroy.GetObject()), out toDestroy);
+                    toDestroy.Invalidate();
+
+                    try
+                    {
+                        factory.DestroyObject(key, toDestroy);
+                    }
+                    finally
+                    {
+                        createdCount--;
+                        destroyedCount++;
+                        numTotal--;
+                    }
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            finally
+            {
+                Deregister(key);
+            }
         }
 
         private IPooledObject<T> Create(K key)

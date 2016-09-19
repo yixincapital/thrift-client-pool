@@ -60,9 +60,9 @@ namespace CommonPool2.impl
         protected int _borrowedCount = 0;
         protected int _returnedCount = 0;
         protected int createdCount = 0;
-        int destroyedCount = 0;
-        int destroyedByEvictorCount = 0;
-        int destroyedByBorrowValidationCount = 0;
+        protected int destroyedCount = 0;
+        protected int destroyedByEvictorCount = 0;
+        protected int destroyedByBorrowValidationCount = 0;
         protected readonly StatsStore activeTimes = new StatsStore(MEAN_TIMING_STATS_CACHE_SIZE);
         protected StatsStore idleTimes = new StatsStore(MEAN_TIMING_STATS_CACHE_SIZE);
         protected StatsStore waitTimes = new StatsStore(MEAN_TIMING_STATS_CACHE_SIZE);
@@ -382,7 +382,7 @@ namespace CommonPool2.impl
             return lifo;
         }
 
-        void UpdateStatsBorrow(IPooledObject<T> p, long waitTime)
+        protected void UpdateStatsBorrow(IPooledObject<T> p, long waitTime)
         {
             _borrowedCount++;
             idleTimes.Add(p.GetIdleTimeMillis());

@@ -16,5 +16,15 @@ namespace CommonPool2.impl
         {
             return false;
         }
+        /// <summary>
+        /// Unlinks the first element in the queue, waiting until there is an element
+        /// to unlink if the queue is empty.
+        /// TODO will do the work later ,now use removefront 
+        /// </summary>
+        /// <returns></returns>
+        public E TakeFront()
+        {
+            return RemoveFront();
+        }
     }
 }
