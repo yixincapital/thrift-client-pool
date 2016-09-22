@@ -1,5 +1,9 @@
 ﻿namespace CommonPool2
 {
+    /// <summary>
+    /// BaseObjectPool
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
     public abstract class BaseObjectPool<T> : IObjectPool<T>
     {
         private volatile bool closed = false;
