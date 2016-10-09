@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using System.Threading;
 using CommonPool2;
 namespace CommonPool2.impl
@@ -351,9 +352,56 @@ namespace CommonPool2.impl
             return p;
         }
 
+        /// <summary>
+        /// Clears oldest 15% of objects in pool.  The method sorts the objects into
+        /// a TreeMap and then iterates the first 15% for removal.
+        /// </summary>
         private void ClearOldest()
         {
-            throw new NotImplementedException();
+            // build sorted map of idle objects
+            Dictionary<IPooledObject<T>,K> map =new Dictionary<IPooledObject<T>, K>();
+
+            foreach (var objectDeque in poolMap)
+            {
+                var queue = objectDeque.Value;
+                if (queue != null)
+                {
+                    LinkedBlockingDeque<IPooledObject<T>> idleObjects =
+                        queue.GetIdleObjects();
+                    foreach (var idleObject in idleObjects)
+                    {
+                        // each item into the map using the PooledObject object as the
+                        // key. It then gets sorted based on the idle time
+                        map.Add(idleObject,objectDeque.Key);
+                    }
+                }
+            }
+
+            // Now iterate created map and kill the first 15% plus one to account 
+            // for zero
+            int itemsToRemove = (int) ((map.Count*0.15) + 1);
+            var iter = map.GetEnumerator();
+            do
+            {
+                var entry = iter.Current;
+                K key = entry.Value;
+                IPooledObject<T> p = entry.Key;
+                bool destroyed = true;
+                try
+                {
+                    destroyed = Destroy(key, p, false);
+                }
+                catch (Exception e)
+                {                    
+                    throw e;
+                }
+
+                if (destroyed)
+                {
+                    itemsToRemove--;
+                }
+            } while (iter.MoveNext());
+
         }
 
         private int GetMaxTotalPerKey()
