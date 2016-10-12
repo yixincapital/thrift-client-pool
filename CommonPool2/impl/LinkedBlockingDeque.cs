@@ -26,5 +26,10 @@ namespace CommonPool2.impl
         {
             return RemoveFront();
         }
+
+        public E Poll()
+        {
+            return TakeFront();
+        }
     }
 }

@@ -62,12 +62,7 @@ namespace CommonPool2.impl
         private void SetMaxIdlePerKey(int getMaxIdlePerKey)
         {
             this.maxIdlePerKey = getMaxIdlePerKey;
-        }
-
-        public void Clear(K key)
-        {
-            throw new System.NotImplementedException();
-        }
+        }     
 
         public override void Close()
         {
@@ -440,50 +435,282 @@ namespace CommonPool2.impl
 
         public void ReturnObject(K key, T obj)
         {
-            throw new System.NotImplementedException();
+            ObjectDeque<T> objectDeque = poolMap[key];
+
+            IPooledObject<T> p;
+            objectDeque.GetAllObjects().TryGetValue(new IdentityWrapper<T>(obj), out p);
+            if (p == null)
+            {
+                throw new IllegalStateException("Returned object not currently part of this pool");
+            }
+
+            lock (p)
+            {
+                PooledObjectState state = p.GetState();
+                if (state != PooledObjectState.Allocated)
+                {
+                    throw new IllegalStateException(
+                        "Object has already been returned to this pool or is invalid");
+                }
+                else
+                {
+                    p.MarkReturning(); // Keep from being marked abandoned
+                }
+            }
+
+            long activeTime = p.GetActiveTimeMillis();
+
+            if (GetTestOnReturn())
+            {
+                if (!factory.ValidateObject(key, p))
+                {
+                    try
+                    {
+                        Destroy(key, p, true);
+                    }
+                    catch (Exception e)
+                    {
+                        
+                        throw e;
+                    }
+                    if (objectDeque.idleObjects.HasTakeWaiters())
+                    {
+                        try
+                        {
+                            AddObject(key);
+                        }
+                        catch (Exception e)
+                        {
+                            
+                            throw e;
+                        }
+                    }
+                    UpdateStatsReturn(activeTime);
+                    return;
+                }
+            }
+            try
+            {
+                factory.PassivateObject(key,p);
+            }
+            catch (Exception e)
+            {                
+                throw e;
+            }
+            if (objectDeque.idleObjects.HasTakeWaiters())
+            {
+                try
+                {
+                    AddObject(key);
+                }
+                catch (Exception e)
+                {
+                    
+                    throw e;
+                }
+                UpdateStatsReturn(activeTime);
+                return;
+            }
+
+            if (!p.Deallocate())
+            {
+                throw new IllegalStateException(
+                  "Object has already been returned to this pool");
+            }
+
+            int maxIdle = GetMaxTotalPerKey();
+            LinkedBlockingDeque<IPooledObject<T>> ideleObjects = objectDeque.GetIdleObjects();
+            if (IsClosed() || maxIdle > -1 && maxIdle <= ideleObjects.Count)
+            {
+                try
+                {
+                    Destroy(key, p, true);
+                }
+                catch (Exception e)
+                {
+                    throw e;
+                }
+            }
+            else
+            {
+                ideleObjects.AddFront(p);
+                if (IsClosed())
+                {
+                    // Pool closed while object was being added to idle objects.
+                    // Make sure the resturned object is destroyed rather than left
+                    // in the idle object pool (which would effectively be a leak)
+                    Clear(key);
+                }
+            }
+            if (HasBorrowWaiters())
+            {
+                //TODO   未来实现resueCapacity功能
+            }
+            UpdateStatsReturn(activeTime);
         }
 
         public void InvalidateObject(K key, T obj)
         {
-            throw new System.NotImplementedException();
+            ObjectDeque<T> objectDeque;
+            poolMap.TryGetValue(key,out objectDeque);
+            IPooledObject<T> p = null;
+            if (objectDeque != null) objectDeque.GetAllObjects().TryGetValue(new IdentityWrapper<T>(obj), out p);
+            if(p==null)
+                throw new IllegalStateException("Object not currently part of this pool");
+            lock (p)
+            {
+                if (p.GetState() != PooledObjectState.Invalid)
+                {
+                    Destroy(key, p, true);
+                }
+            }
+            if (objectDeque.idleObjects.HasTakeWaiters())
+            {
+                AddObject(key);
+            }
         }
         
         public void AddObject(K key)
         {
-            throw new System.NotImplementedException();
+            AssertOpen();
+            Register(key);
+            try
+            {
+                IPooledObject<T> p = Create(key);
+                AddIdleObject(key, p);
+            }
+            finally
+            {
+                Deregister(key);
+            }
         }
 
         public int GetNumIdle(K key)
         {
-            throw new System.NotImplementedException();
+            ObjectDeque<T> objectDeque;
+            poolMap.TryGetValue(key, out objectDeque);
+            return objectDeque != null ? objectDeque.GetIdleObjects().Count : 1;
         }
 
         public int GetNumActive(K key)
         {
-            throw new System.NotImplementedException();
+            ObjectDeque<T> objectDeque;
+            poolMap.TryGetValue(key, out objectDeque);
+            if (objectDeque != null)
+            {
+                return objectDeque.GetAllObjects().Count - objectDeque.GetIdleObjects().Count;
+            }
+            else
+            {
+                return 0;
+            }
         }
 
         public override int GetNumIdle()
         {
-            throw new System.NotImplementedException();
+            var iter = poolMap.Values.GetEnumerator();
+            int result = 0;
+
+            do
+            {
+                result += iter.Current.GetIdleObjects().Count;
+            } while (iter.MoveNext());
+            return result;
         }
 
         public override int GetNumActive()
         {
-            throw new System.NotImplementedException();
+            return numTotal - GetNumIdle();
         }
 
         public void Clear()
         {
-            throw new System.NotImplementedException();
+            var iter = poolMap.Keys.GetEnumerator();
+
+            do
+            {
+                Clear(iter.Current);
+
+            } while (iter.MoveNext());
+        }
+        
+          /**
+     * Clears the specified sub-pool, removing all pooled instances
+     * corresponding to the given <code>key</code>. Exceptions encountered
+     * destroying idle instances are swallowed but notified via a
+     * {@link SwallowedExceptionListener}.
+     *
+     * @param key the key to clear
+     */
+
+    public void Clear(K key) {
+
+        ObjectDeque<T> objectDeque = Register(key);
+
+        try {
+            LinkedBlockingDeque<IPooledObject<T>> idleObjects =
+                    objectDeque.GetIdleObjects();
+
+            IPooledObject<T> p = idleObjects.Poll();
+
+            while (p != null) {
+                try {
+                    Destroy(key, p, true);
+                } catch (Exception e)
+                {
+                    throw e;
+                }
+                p = idleObjects.Poll();
+            }
+        } finally {
+            Deregister(key);
+        }
+    }
+
+        /// <summary>
+        /// Checks to see if there are any threads currently waiting to borrow
+        /// objects but are blocked waiting for more objects to become available.
+        /// </summary>
+        /// <returns>true if there is at least one thread waiting otherwise false</returns>
+        private bool HasBorrowWaiters()
+        {
+            foreach (var k in poolMap.Keys)
+            {
+                ObjectDeque<T> deque;
+                poolMap.TryGetValue(k, out deque);
+                if (deque != null)
+                {
+                    LinkedBlockingDeque<IPooledObject<T>> pool = deque.GetIdleObjects();
+                    if (pool.HasTakeWaiters())
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
+        private void AddIdleObject(K key, IPooledObject<T> p)
+        {
+            if (p != null)
+            {
+                factory.PassivateObject(key,p);
+              
+                ObjectDeque<T> deque;
+                poolMap.TryGetValue(key, out deque);
+                if (deque != null)
+                {
+                    LinkedBlockingDeque<IPooledObject<T>> idleObjects= deque.GetIdleObjects();
+                    idleObjects.AddFront(p);
+                }
+            }
+        }
           /**
      * Maintains information on the per key queue for a given key.
      */
     public class ObjectDeque<S> {
 
-        private readonly LinkedBlockingDeque<IPooledObject<S>> idleObjects;
+        public  LinkedBlockingDeque<IPooledObject<S>> idleObjects;
       
         /*
          * Number of instances created - number destroyed.
