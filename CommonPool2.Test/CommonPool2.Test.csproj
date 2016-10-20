@@ -62,7 +62,7 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\CommonPool2\CommonPool2.csproj">
+    <ProjectReference Include="..\CommonPool2\CommonPool2.csproj">
       <Project>{6a21e1ca-bc1b-45b1-9f71-5cfe8fc43a12}</Project>
       <Name>CommonPool2</Name>
     </ProjectReference>
