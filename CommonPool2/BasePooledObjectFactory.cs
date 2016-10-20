@@ -15,14 +15,27 @@
         /// <returns></returns>
         public abstract IPooledObject<T> Wrap(T obj);
 
-        public abstract IPooledObject<T> MakeObject();
+        public IPooledObject<T> MakeObject()
+        {
+            return Wrap(Create());
+        }
 
-        public abstract void DestroyObject(IPooledObject<T> p);
+        public void DestroyObject(IPooledObject<T> p)
+        {
+            
+        }
+        /// <summary>
+        /// always return true
+        /// </summary>
+        /// <param name="p"></param>
+        /// <returns></returns>
+        public bool ValidateObject(IPooledObject<T> p)
+        {
+            return true;
+        }
 
-        public abstract bool ValidateObject(IPooledObject<T> p);
-
-        public abstract void ActivateObject(IPooledObject<T> p);
-
+        public  void ActivateObject(IPooledObject<T> p)
+        { }
         public abstract void PassivateObject(IPooledObject<T> p);
     }
 }
